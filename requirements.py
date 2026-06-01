@@ -13,6 +13,7 @@ Usage: python mgnn_ipv.py --config config.yaml
 # Reproducibility seeds
 # ──────────────────────────────────────────────────────────────────────────────
 import random
+
 import numpy as np
 
 SEED = 42
@@ -20,52 +21,62 @@ random.seed(SEED)
 np.random.seed(SEED)
 
 import torch
+
 torch.manual_seed(SEED)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(SEED)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+import argparse
+import json
+import logging
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports
 # ──────────────────────────────────────────────────────────────────────────────
 import os
-import json
-import logging
-import argparse
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-import pandas as pd
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.model_selection import KFold
-from sklearn.metrics import (
-    mean_squared_error, mean_absolute_error, r2_score,
-    accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,
-    confusion_matrix
-)
-from scipy.stats import wilcoxon
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.optim import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
-
-import torch_geometric
-from torch_geometric.data import Data, HeteroData, DataLoader
-from torch_geometric.nn import GATConv, HeteroConv, Linear, global_mean_pool
-from torch_geometric.transforms import ToUndirected
-
-from transformers import AutoTokenizer, AutoModel
-
-import shap
 import matplotlib
+import pandas as pd
+import shap
+import torch  # type:ignore
+import torch.nn as nn  # type:ignore
+import torch.nn.functional as F  # type:ignore
+import torch_geometric  # type:ignore
+from scipy.stats import wilcoxon  # type:ignore
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+    precision_score,
+    r2_score,
+    recall_score,
+    roc_auc_score,
+)
+from sklearn.model_selection import KFold
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from torch.optim import AdamW  # type:ignore
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts  # type:ignore
+from torch_geometric.data import Data, DataLoader, HeteroData  # type:ignore
+from torch_geometric.nn import (  # type:ignore
+    GATConv,
+    HeteroConv,
+    Linear,
+    global_mean_pool,
+)
+from torch_geometric.transforms import ToUndirected  # type:ignore
+from transformers import AutoModel, AutoTokenizer
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import networkx as nx
 import seaborn as sns
 from matplotlib.gridspec import GridSpec
-import networkx as nx
 from sklearn.manifold import TSNE
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
