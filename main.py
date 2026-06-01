@@ -641,6 +641,136 @@ class Trainer:
                     break
 
 
+class StartupPatentDataset(torch.utils.data.Dataset):
+    def __init__(self, startup_indices, data):
+        self.startup_indices = startup_indices
+        self.data = data
+        self.startups = data["startups"]
+        self.patents = data["patents"]
+        self.ownership = data["ownership"]
+        self.patent_idx = data["patent_idx"]
+        
+        # Pre-group patents by startup for fast lookup
+        self.startup_to_patents = self.ownership.groupby("startup_id")["patent_id"].apply(list).to_dict()
+
+    def __len__(self):
+        return len(self.startup_indices)
+
+    def __getitem__(self, idx):
+        startup_row_idx = self.startup_indices[idx]
+        startup_row = self.startups.iloc[startup_row_idx]
+        startup_id = startup_row["startup_id"]
+        
+        owned_patents = self.startup_to_patents.get(startup_id, [])
+        return {
+            "startup_id": startup_id,
+            "startup_row_idx": startup_row_idx,
+            "owned_patents": owned_patents
+        }
+
+
+def collate_fn(batch, data):
+    startups = data["startups"]
+    patents = data["patents"]
+    edge_index_global = data["edge_index"]
+    edge_time_global = data["edge_time"]
+    patent_idx = data["patent_idx"]
+    
+    startup_feats_list = []
+    fund_gt_list = []
+    
+    batch_patent_ids = []
+    patent_to_batch_local = {}
+    patent_batch_mapping = []
+    
+    for local_s_idx, item in enumerate(batch):
+        startup_row = startups.iloc[item["startup_row_idx"]]
+        s_feat = [
+            float(startup_row["stage_enc"]),
+            float(startup_row["sector_enc"]),
+            float(startup_row["country_enc"]),
+            float(startup_row["founding_year"]),
+            float(startup_row["employees"]),
+            float(startup_row["prior_funding"]),
+            float(startup_row["prior_funding_log"]),
+            0.0
+        ]
+        startup_feats_list.append(s_feat)
+        fund_gt_list.append(int(startup_row["funded_next_round"]))
+        
+        for pid in item["owned_patents"]:
+            if pid in patent_idx:
+                batch_patent_ids.append(pid)
+                patent_to_batch_local[pid] = len(patent_to_batch_local)
+                patent_batch_mapping.append(local_s_idx)
+                
+    if len(batch_patent_ids) == 0:
+        dummy_pid = list(patent_idx.keys())[0]
+        batch_patent_ids.append(dummy_pid)
+        patent_to_batch_local[dummy_pid] = 0
+        patent_batch_mapping.append(0)
+
+    texts = []
+    struct_list = []
+    val_gt_list = []
+    
+    for pid in batch_patent_ids:
+        p_row = patents.iloc[patent_idx[pid]]
+        texts.append(p_row["text"])
+        struct_feat = [
+            float(p_row["forward_cites"]),
+            float(p_row["backward_cites"]),
+            float(p_row["num_claims"]),
+            float(p_row["num_ipc"]),
+            float(p_row["filing_year"]),
+            float(p_row["family_size"]),
+            float(p_row["patent_age"])
+        ]
+        struct_list.append(struct_feat)
+        val_gt_list.append(float(p_row["valuation_log"]))
+        
+    struct_tensor = torch.tensor(struct_list, dtype=torch.float)
+    val_gt_tensor = torch.tensor(val_gt_list, dtype=torch.float)
+    startup_feats_tensor = torch.tensor(startup_feats_list, dtype=torch.float)
+    patent_batch_tensor = torch.tensor(patent_batch_mapping, dtype=torch.long)
+    fund_gt_tensor = torch.tensor(fund_gt_list, dtype=torch.long)
+    
+    global_to_local = {patent_idx[pid]: local_idx for pid, local_idx in patent_to_batch_local.items()}
+    
+    src_global = edge_index_global[0].numpy()
+    dst_global = edge_index_global[1].numpy()
+    
+    src_local = []
+    dst_local = []
+    edge_times_local = []
+    
+    for i in range(len(src_global)):
+        s_g = src_global[i]
+        d_g = dst_global[i]
+        if s_g in global_to_local and d_g in global_to_local:
+            src_local.append(global_to_local[s_g])
+            dst_local.append(global_to_local[d_g])
+            edge_times_local.append(edge_time_global[i].item())
+            
+    if len(src_local) > 0:
+        edge_index_batch = torch.tensor([src_local, dst_local], dtype=torch.long)
+        edge_time_batch = torch.tensor(edge_times_local, dtype=torch.float)
+    else:
+        edge_index_batch = torch.empty((2, 0), dtype=torch.long)
+        edge_time_batch = torch.empty((0,), dtype=torch.float)
+        
+    return (
+        texts,
+        struct_tensor,
+        edge_index_batch,
+        edge_time_batch,
+        startup_feats_tensor,
+        patent_batch_tensor,
+        val_gt_tensor,
+        fund_gt_tensor
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # §11. INNOVATION IMPACT SCORE
 # ══════════════════════════════════════════════════════════════════════════════
@@ -909,15 +1039,51 @@ def main():
         preprocessor = PatentDataPreprocessor(cfg)
         data = preprocessor.run()
 
-        # NOTE: In full deployment, build proper PyG DataLoader from 'data' dict.
-        # Here we outline the training call structure.
         model = MGNN_IPV(cfg)
         logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
-        # Placeholder: replace with actual dataloaders
-        # trainer = Trainer(model, cfg)
-        # trainer.fit(train_loader, val_loader)
-        logger.info("Training pipeline initialized. Provide dataloaders to trainer.fit().")
+        startups = data["startups"]
+        train_startups = startups[startups["founding_year"] < 2020].index.tolist()
+        val_startups = startups[(startups["founding_year"] >= 2020) & (startups["founding_year"] < 2022)].index.tolist()
+        test_startups = startups[startups["founding_year"] >= 2022].index.tolist()
+
+        if len(train_startups) == 0 or len(val_startups) == 0 or len(test_startups) == 0:
+            logger.info("Temporal startup split was empty. Falling back to robust random split.")
+            indices = list(range(len(startups)))
+            random.shuffle(indices)
+            n_total = len(indices)
+            n_train = int(n_total * 0.7)
+            n_val = int(n_total * 0.15)
+            train_startups = indices[:n_train]
+            val_startups = indices[n_train:n_train+n_val]
+            test_startups = indices[n_train+n_val:]
+
+        from torch.utils.data import DataLoader as PyTorchDataLoader
+        
+        train_dataset = StartupPatentDataset(train_startups, data)
+        val_dataset = StartupPatentDataset(val_startups, data)
+        test_dataset = StartupPatentDataset(test_startups, data)
+        
+        train_loader = PyTorchDataLoader(
+            train_dataset, batch_size=cfg.batch_size, shuffle=True,
+            collate_fn=lambda b: collate_fn(b, data)
+        )
+        val_loader = PyTorchDataLoader(
+            val_dataset, batch_size=cfg.batch_size, shuffle=False,
+            collate_fn=lambda b: collate_fn(b, data)
+        )
+        test_loader = PyTorchDataLoader(
+            test_dataset, batch_size=cfg.batch_size, shuffle=False,
+            collate_fn=lambda b: collate_fn(b, data)
+        )
+
+        trainer = Trainer(model, cfg)
+        trainer.fit(train_loader, val_loader)
+
+        logger.info("Evaluating on test set...")
+        test_metrics = trainer.evaluate(test_loader)
+        for k, v in test_metrics.items():
+            logger.info(f"Test {k}: {v:.4f}")
 
     elif args.mode == "visualize":
         logger.info("Generating publication figures...")
