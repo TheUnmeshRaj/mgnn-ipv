@@ -1,0 +1,45 @@
+# MGNN-IPV Configuration File
+# Matches Table IV (Hyperparameter Configuration) in paper
+
+# Paths
+data_dir: "data/"
+output_dir: "outputs/"
+model_dir: "models/"
+
+# SciBERT
+scibert_model: "allenai/scibert_scivocab_uncased"
+max_seq_len: 512
+fine_tune_layers: 4
+
+# Graph Attention Network
+gat_heads: 8
+gat_hidden: 128
+gat_layers: 3
+gat_dropout: 0.2
+
+# Startup Transformer Encoder
+startup_layers: 3
+startup_dim: 256
+startup_ffn: 512
+
+# Cross-Modal Attention
+cross_heads: 4
+cross_key_dim: 64
+
+# Bayesian Head (MC-Dropout)
+mc_passes: 50
+mc_dropout: 0.1
+
+# Training
+batch_size: 512
+lr: 3.0e-4
+scibert_lr: 2.0e-5
+epochs: 80
+warmup_steps: 500
+lambda_cls: 0.5
+lambda_reg: 1.0e-4
+patience: 10
+
+# Evaluation
+n_seeds: 5
+seeds: [42, 137, 256, 512, 1024]

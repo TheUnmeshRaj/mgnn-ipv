@@ -1,0 +1,51 @@
+# MGNN-IPV Requirements
+# Python >= 3.9
+
+# Core ML
+torch>=2.0.0
+torchvision>=0.15.0
+torch-geometric>=2.3.0
+torch-scatter>=2.1.0
+torch-sparse>=0.6.17
+
+# Transformers
+transformers>=4.35.0
+tokenizers>=0.14.0
+
+# Classical ML
+scikit-learn>=1.3.0
+xgboost>=1.7.0
+lightgbm>=4.0.0
+
+# Data
+pandas>=2.0.0
+numpy>=1.24.0
+pyarrow>=12.0.0
+scipy>=1.11.0
+
+# Explainability
+shap>=0.43.0
+lime>=0.2.0.1
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+networkx>=3.1.0
+
+# Graph data
+torch-cluster>=1.6.0
+
+# NLP
+nltk>=3.8.0
+spacy>=3.6.0
+
+# Utilities
+tqdm>=4.65.0
+pyyaml>=6.0
+optuna>=3.2.0
+wandb>=0.15.0
+
+# Dataset access
+requests>=2.31.0
+beautifulsoup4>=4.12.0
