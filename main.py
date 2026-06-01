@@ -250,10 +250,16 @@ class SciBERTEncoder(nn.Module):
                 param.requires_grad = True
 
     def forward(self, texts: List[str]) -> torch.Tensor:
-        enc = self.tokenizer(texts, return_tensors="pt", padding=True,
-                             truncation=True, max_length=512).to(DEVICE)
-        out = self.bert(**enc)
-        return out.last_hidden_state[:, 0, :]  # [CLS] embedding: (B, 768)
+        # Process in mini-batches to prevent CUDA Out of Memory errors
+        sub_batch_size = 64
+        embeddings = []
+        for i in range(0, len(texts), sub_batch_size):
+            sub_texts = texts[i:i+sub_batch_size]
+            enc = self.tokenizer(sub_texts, return_tensors="pt", padding=True,
+                                 truncation=True, max_length=512).to(DEVICE)
+            out = self.bert(**enc)
+            embeddings.append(out.last_hidden_state[:, 0, :])  # [CLS] embedding: (sub_B, 768)
+        return torch.cat(embeddings, dim=0)
 
 
 class StructuralEncoder(nn.Module):
@@ -393,6 +399,8 @@ class CrossModalAttention(nn.Module):
     def __init__(self, ip_dim: int, startup_dim: int, n_heads: int = 4, d_k: int = 64):
         super().__init__()
         fused_dim = ip_dim + startup_dim
+        self.proj_ip = nn.Linear(ip_dim, fused_dim)
+        self.proj_startup = nn.Linear(startup_dim, fused_dim)
         self.norm1 = nn.LayerNorm(fused_dim)
         self.attn = nn.MultiheadAttention(embed_dim=fused_dim, num_heads=n_heads,
                                            kdim=fused_dim, vdim=fused_dim,
@@ -405,8 +413,11 @@ class CrossModalAttention(nn.Module):
         self.out_dim = fused_dim
 
     def forward(self, h_ip: torch.Tensor, h_startup: torch.Tensor) -> torch.Tensor:
+        # Project modalities to fused_dim to enable stacking
+        h_ip_proj = self.proj_ip(h_ip)  # (B, fused_dim)
+        h_startup_proj = self.proj_startup(h_startup)  # (B, fused_dim)
         # Concatenate modalities as sequence of length 2
-        x = torch.stack([h_ip, h_startup], dim=1)  # (B, 2, d)
+        x = torch.stack([h_ip_proj, h_startup_proj], dim=1)  # (B, 2, fused_dim)
         x = self.norm1(x)
         attn_out, _ = self.attn(x, x, x)
         x = x + attn_out
