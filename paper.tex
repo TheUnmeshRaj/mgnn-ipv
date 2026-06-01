@@ -431,7 +431,28 @@ HAN & 0.827 & 0.778 & 0.759 & 0.768 & 0.891 \\
 \end{tabular}
 \end{table}
 
-MGNN-IPV achieves ROC-AUC of 0.921, with PR-AUC of 0.887, substantially outperforming the best baseline (HAN: AUC 0.891, PR-AUC 0.849). The 3.4\% AUC improvement corresponds to screening 12.7\% more viable funded startups while maintaining the same false positive rate, translating to material economic value in portfolio screening.
+Figure~\ref{fig:benchmark} visualizes benchmark performance across all baselines. \begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{outputs/fig_benchmark.png}
+  \caption{Benchmark comparison of MGNN-IPV versus baselines on RMSE, $R^2$, AUC, and F1.}
+  \label{fig:benchmark}
+\end{figure*}
+
+MGNN-IPV achieves ROC-AUC of 0.921, with PR-AUC of 0.887, substantially outperforming the best baseline (HAN: AUC 0.891, PR-AUC 0.849). Figure~\ref{fig:roc} shows the ROC curves for the top baselines and MGNN-IPV, while Figure~\ref{fig:confusion} presents the confusion matrix for the funding prediction task. The 3.4\% AUC improvement corresponds to screening 12.7\% more viable funded startups while maintaining the same false positive rate, translating to material economic value in portfolio screening.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{outputs/fig_roc.png}
+  \caption{ROC curves for funding prediction: XGBoost, HAN, and MGNN-IPV.}
+  \label{fig:roc}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{outputs/fig_confusion.png}
+  \caption{Confusion matrix for MGNN-IPV funding prediction on the test set.}
+  \label{fig:confusion}
+\end{figure}
 
 \subsection{Temporal Generalization (TES Dataset)}
 
@@ -450,6 +471,13 @@ HAN & 0.712 & 0.861 & $-0.059$ & $-0.030$ \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+Figure~\ref{fig:temporal} illustrates the temporal valuation forecast with uncertainty bands in the prospective evaluation setting. \begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{outputs/fig_temporal.png}
+  \caption{Prospective temporal valuation forecasts with predicted uncertainty bands.}
+  \label{fig:temporal}
+\end{figure*}
 
 The temporal drop ($\Delta R^2 = -0.043$) for MGNN-IPV is significantly smaller than all baselines (average $\Delta R^2 = -0.060$), confirming that the temporal attention mechanism and Bayesian uncertainty allow better generalization under distributional shift.
 
@@ -477,7 +505,14 @@ w/o Heterogeneous Types & 0.831 ($-1.9\%$) & 0.904 ($-1.9\%$) \\
 \end{tabular}
 \end{table}
 
-SciBERT initialization provides the largest single contribution ($R^2$ $-7.8\%$ when removed), confirming the primacy of patent semantic understanding. The GAT module contributes the second-largest gain, validating the citation graph as a critical signal. Temporal attention, while modest in isolation ($-2.7\%$), provides disproportionate benefit in the temporal evaluation (Table~\ref{tab:temporal}). The Bayesian head has minimal impact on point estimates but substantially improves calibration (ECE degrades from 0.038 to 0.091 without it).
+Figure~\ref{fig:ablation} shows the component-level ablation results. SciBERT initialization provides the largest single contribution ($R^2$ $-7.8\%$ when removed), confirming the primacy of patent semantic understanding. The GAT module contributes the second-largest gain, validating the citation graph as a critical signal. Temporal attention, while modest in isolation ($-2.7\%$), provides disproportionate benefit in the temporal evaluation (Table~\ref{tab:temporal}). The Bayesian head has minimal impact on point estimates but substantially improves calibration (ECE degrades from 0.038 to 0.091 without it).
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{outputs/fig_ablation.png}
+  \caption{Ablation study showing component contributions to $R^2$ and AUC.}
+  \label{fig:ablation}
+\end{figure*}
 
 \subsection{SHAP Explainability Analysis}
 
@@ -505,11 +540,34 @@ Founder academic background & 0.031 & Startup \\
 \end{tabular}
 \end{table}
 
-The GAT-derived embedding dimensions (capturing citation graph topology) and SciBERT semantic clustering jointly explain over 43\% of model predictions, confirming the value of both modalities. Structural features (forward citations, family size) remain important baselines, while market context provides marginal but statistically non-negligible contribution.
+Figure~\ref{fig:shap} visualizes the global SHAP feature importance rankings. The GAT-derived embedding dimensions (capturing citation graph topology) and SciBERT semantic clustering jointly explain over 43\% of model predictions, confirming the value of both modalities. Structural features (forward citations, family size) remain important baselines, while market context provides marginal but statistically non-negligible contribution.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{outputs/fig_shap.png}
+  \caption{Global SHAP feature importance for funding prediction.}
+  \label{fig:shap}
+\end{figure}
+
+Figure~\ref{fig:tsne} provides a t-SNE visualization of patent embeddings, showing how technology domains form well-separated clusters in the learned representation space.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{outputs/fig_tsne.png}
+  \caption{t-SNE visualization of patent embeddings colored by technology domain.}
+  \label{fig:tsne}
+\end{figure}
 
 \subsection{Uncertainty Analysis}
 
-Calibration curves show that MGNN-IPV's predictive confidence intervals are well-calibrated: 90\% confidence intervals contain the true valuation in 87.3\% of test samples (target: 90\%), with ECE = 0.038. Startups in the bottom quartile of uncertainty score ($\hat{\sigma} < 0.12$) have a funding success rate of 68.4\%, versus 31.2\% for the top uncertainty quartile ($\hat{\sigma} > 0.34$), confirming that uncertainty serves as a meaningful risk signal.
+Calibration curves show that MGNN-IPV's predictive confidence intervals are well-calibrated: 90\% confidence intervals contain the true valuation in 87.3\% of test samples (target: 90\%), with ECE = 0.038. Figure~\ref{fig:calibration} shows the reliability diagram for the funding probability predictions. Startups in the bottom quartile of uncertainty score ($\hat{\sigma} < 0.12$) have a funding success rate of 68.4\%, versus 31.2\% for the top uncertainty quartile ($\hat{\sigma} > 0.34$), confirming that uncertainty serves as a meaningful risk signal.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{outputs/fig_calibration.png}
+  \caption{Calibration curve (reliability diagram) for MGNN-IPV funding probability predictions.}
+  \label{fig:calibration}
+\end{figure}
 
 % ============================================================
 % VII. DISCUSSION

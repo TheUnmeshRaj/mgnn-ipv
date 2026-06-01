@@ -761,8 +761,8 @@ def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray,
 def plot_tsne_patent_embeddings(embeddings: np.ndarray, labels: np.ndarray,
                                  label_names: List[str], save_path: str) -> None:
     """t-SNE visualization of patent embeddings colored by technology domain."""
-    tsne = TSNE(n_components=2, perplexity=40, n_iter=1000,
-                random_state=SEED, n_jobs=-1)
+    tsne = TSNE(n_components=2, perplexity=40, max_iter=1000,
+            random_state=SEED)
     proj = tsne.fit_transform(embeddings)
     fig, ax = plt.subplots(figsize=(7, 5))
     for i, name in enumerate(label_names):
@@ -993,7 +993,8 @@ def main():
         # Create domain clusters
         domains = np.random.choice(6, n_pts)
         for d in range(6):
-            embs[domains == d] += np.random.randn(3, 128) * 2
+            cluster_shift = np.random.randn(128) * 2
+            embs[domains == d] += cluster_shift
         plot_tsne_patent_embeddings(
             embs, domains,
             ["Computing", "Biotech", "Energy", "Materials", "Telecom", "Chemistry"],
