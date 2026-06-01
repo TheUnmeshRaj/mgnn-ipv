@@ -34,7 +34,7 @@ mc_dropout: 0.1
 batch_size: 512
 lr: 3.0e-4
 scibert_lr: 2.0e-5
-epochs: 2
+epochs: 80
 warmup_steps: 500
 lambda_cls: 0.5
 lambda_reg: 1.0e-4
